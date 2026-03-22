@@ -1936,10 +1936,10 @@
     H.j = G;
     H.H = vd;
     H.i = {
-        Fa: new Gd("/","main"),
-        xc: new Gd("/","initial"),
-        Kc: new Gd("/","victory"),
-        Ua: new Gd("/","end")
+        Fa: new Gd("./","main"),
+        xc: new Gd("./","initial"),
+        Kc: new Gd("./","victory"),
+        Ua: new Gd("./","end")
     };
     var I = H.i;
     H.g = {};
@@ -1982,7 +1982,7 @@
         }
         ;
         Hd[Id] = b;
-        b.src = "/" ();
+        b.src = (typeof a === "function") ? a() : a;
         Id++
     }
       , Hd = []
@@ -2453,7 +2453,7 @@
     }
     ;
     var Qe = function() {
-        Ke.call(this, "/", Pe)
+        Ke.call(this, "", Pe)
     };
     ha(Qe, Ke);
     var Pe = [{

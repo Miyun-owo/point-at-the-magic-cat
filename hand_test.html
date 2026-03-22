@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Magic Cat Hand Tracking</title>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+
+  <style>
+    body { margin: 0; background: #1a1a1a; color: white; font-family: sans-serif; overflow: hidden; }
+    .container { position: relative; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
+    #input_video { display: none; } /* 隱藏原始影片 */
+    #output_canvas { border: 2px solid #555; border-radius: 10px; max-width: 90%; max-height: 90%; transform: scaleX(-1); } /* 鏡像翻轉 */
+    .info { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.6); padding: 10px; border-radius: 5px; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="info">
+      Status: <span id="status">Preparing...</span><br>
+      Index Finger Position: <span id="coords">X: 0, Y: 0</span>
+    </div>
+    <video id="input_video"></video>
+    <canvas id="output_canvas" width="1280" height="720"></canvas>
+  </div>
+
+  <script type="module">
+    const videoElement = document.getElementById('input_video');
+    const canvasElement = document.getElementById('output_canvas');
+    const canvasCtx = canvasElement.getContext('2d');
+    const statusText = document.getElementById('status');
+    const coordsText = document.getElementById('coords');
+    let smoothedX = 0;
+    let smoothedY = 0;
+    const smoothingFactor = 0.7; // 數值越高越平滑，但延遲感會增加 (0.1 ~ 0.9)
+    let isDrawing = false;       // 是否正在「按住左鍵」畫符
+    let path = [];
+
+    function recognizeShape(points) {
+    if (points.length < 5) return;
+
+    // 1. 取得路徑的基本資訊
+    const first = points[0];
+    const last = points[points.length - 1];
+    const mid = points[Math.floor(points.length / 2)];
+    
+    const dx = last.x - first.x;
+    const dy = last.y - first.y;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+
+    let shape = "Unknown";
+
+    // 2. 判斷邏輯
+    
+    // A. 橫線(水平位移遠大於垂直位移)
+    if (absDx > 0.2 && absDy < 0.15) {
+        shape = "Horizontal Line";
+    } 
+    
+    // B. 直線(垂直位移遠大於水平位移)
+    else if (absDy > 0.2 && absDx < 0.15) {
+        shape = "Vertical Line";
+    }
+
+    // C. V (先下後上)
+    else if (mid.y > first.y + 0.1 && mid.y > last.y + 0.1) {
+        shape = "V-shape";
+    }
+
+    // D. ∧ (先上後下)
+    else if (mid.y < first.y - 0.1 && mid.y < last.y - 0.1) {
+        shape = "Inverted V";
+    }
+
+    // E. 閃電 (判斷 X 軸是否有來回轉折)
+    // 簡化版：起點與終點 X 距離不大，但中間有劇烈波動
+    else if (absDx < 0.2 && absDy > 0.3) {
+        // 這裡可以再細化判斷中間點的 X 偏移
+        shape = "Lightning";
+    }
+
+    // F. 愛心 (起點與終點很近，且中間點在下方)
+    const distStartEnd = Math.hypot(dx, dy);
+    if (distStartEnd < 0.1 && mid.y > first.y + 0.1) {
+        shape = "Heart";
+    }
+
+    if (shape !== "Unknown") {
+        console.log("辨識成功:", shape);
+        showResultOnScreen(shape); // 在螢幕上顯示結果
+        triggerGameKey(shape);      // 觸發遊戲按鍵
+    }
+    }
+
+    function showResultOnScreen(shape) {
+        const status = document.getElementById('status');
+        status.innerText = `辨識結果: ${shape}`;
+        status.style.color = "#00FF00";
+        setTimeout(() => { status.style.color = "white"; }, 1000);
+    }
+
+
+    function onResults(results) {
+        canvasCtx.save();
+        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+        canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            const landmarks = results.multiHandLandmarks[0];
+            const indexTip = landmarks[8];
+            const thumbTip = landmarks[4];
+
+            // 平滑化座標
+            smoothedX = (smoothedX * smoothingFactor) + (indexTip.x * canvasElement.width * (1 - smoothingFactor));
+            smoothedY = (smoothedY * smoothingFactor) + (indexTip.y * canvasElement.height * (1 - smoothingFactor));
+
+            // 捏合偵測 (靈敏度建議設在 0.05 - 0.1 之間)
+            const distance = Math.hypot(indexTip.x - thumbTip.x, indexTip.y - thumbTip.y);
+            const pressed = distance < 0.07; 
+
+            if (pressed) {
+            if (!isDrawing) {
+                isDrawing = true;
+                path = []; // 開始新路徑
+            }
+            // 紀錄標準化後的座標 (0~1)，方便辨識
+            path.push({ x: indexTip.x, y: indexTip.y });
+            } else {
+            if (isDrawing) {
+                isDrawing = false;
+                console.log("完成畫符，座標總數:", path.length);
+                recognizeShape(path); // 鬆開手時進行辨識
+            }
+            }
+
+            // --- 繪製軌跡 ---
+            if (path.length > 1) {
+            canvasCtx.beginPath();
+            canvasCtx.lineWidth = 10;
+            canvasCtx.strokeStyle = "#ff0000";
+            canvasCtx.lineCap = "round";
+            canvasCtx.lineJoin = "round";
+            
+            // 將 path 裡的比例座標轉回畫布像素
+            canvasCtx.moveTo(path[0].x * canvasElement.width, path[0].y * canvasElement.height);
+            for (let i = 1; i < path.length; i++) {
+                canvasCtx.lineTo(path[i].x * canvasElement.width, path[i].y * canvasElement.height);
+            }
+            canvasCtx.stroke();
+            }
+
+            // 畫出目前的指尖位置 (黃色/青色點)
+            canvasCtx.beginPath();
+            canvasCtx.arc(smoothedX, smoothedY, 15, 0, 2 * Math.PI);
+            canvasCtx.fillStyle = pressed ? "yellow" : "cyan";
+            canvasCtx.fill();
+            canvasCtx.stroke();
+        }
+        canvasCtx.restore();
+        }
+
+        // 預留辨識函式
+        function recognizeShape(points) {
+        if (points.length < 10) return; // 點太少不辨識
+        console.log("準備辨識形狀...");
+        // 這裡會放入我們接下來要討論的辨識邏輯
+        }
+    canvasCtx.restore();
+
+
+    const hands = new Hands({locateFile: (file) => {
+      return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+    }});
+
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+    hands.onResults(onResults);
+
+    const camera = new Camera(videoElement, {
+      onFrame: async () => {
+        await hands.send({image: videoElement});
+      },
+      width: 1280,
+      height: 720
+    });
+    camera.start().then(() => {
+      statusText.innerText = "Camera started";
+    });
+  </script>
+</body>
+</html>

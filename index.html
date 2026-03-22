@@ -1,6 +1,7 @@
 <!doctype html>
 <html id="sadoodle">
     <head>
+        <base href="/magic-cat-academy-Google/">
         <meta http-equiv="X-UA-Compatible" content="IE=Edge">
     </head>
     <body style="text-align:center">
@@ -1123,7 +1124,7 @@
             }
         </script>
         <style>
-		#hplogo{height:690px;outline:none;overflow:hidden;position:relative;width:1224px;-moz-user-select:-moz-none;-ms-user-select:none;-webkit-tap-highlight-color:transparent;-webkit-user-select:none}#fpdoodle #hplogo{height:1080px;width:1920px}#hplogo canvas{background:url(/cta_bg.png) no-repeat center;background-size:contain;height:100%;width:100%}#dood #hplogo canvas{background:url(/ntp_bg.jpg) no-repeat;background-size:contain;cursor:pointer;height:100%;width:100%}#fpdoodle,#sadoodle{background:#000}
+		#hplogo{height:690px;outline:none;overflow:hidden;position:relative;width:1224px;-moz-user-select:-moz-none;-ms-user-select:none;-webkit-tap-highlight-color:transparent;-webkit-user-select:none}#fpdoodle #hplogo{height:1080px;width:1920px}#hplogo canvas{background:url(./cta_bg.png) no-repeat center;background-size:contain;height:100%;width:100%}#dood #hplogo canvas{background:url(/ntp_bg.jpg) no-repeat;background-size:contain;cursor:pointer;height:100%;width:100%}#fpdoodle,#sadoodle{background:#000}
         </style>
         <div id="hplogo" tabindex="0" title="{{LOGO_ALT_TEXT_HTML}}" dir="{{LANGUAGE_DIRECTION}}">
             <canvas width=640 height=360 dir="{{LANGUAGE_DIRECTION}}"></canvas>
@@ -1164,7 +1165,7 @@
                     }
                     for (var k = JSON.parse("[]"), l = 0, m = function() {
                         l++;
-                        l >= k.length && b("/halloween16.js")
+                        l >= k.length && b("./halloween16.js")
                     }, n = 0; n < k.length; n++)
                         b(k[n], m);
                     0 == k.length && m()
@@ -1225,3 +1226,5 @@
             }
             ).call(this);
         </script>
+    </body>
+</html>

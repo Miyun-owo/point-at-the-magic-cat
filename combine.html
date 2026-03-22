@@ -1,0 +1,190 @@
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+
+
+<div id="gesture-layer" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; pointer-events: none;">
+  <video id="input_video" style="display:none;"></video>
+  <canvas id="output_canvas" style="width: 100%; height: 100%; transform: scaleX(-1);"></canvas>
+</div>
+
+<iframe 
+  id="game-iframe" 
+  src="index.html" 
+  width="1920" 
+  height="850" 
+  frameborder="0" 
+  allow="autoplay">
+</iframe>
+
+  <script>
+    // 0. 強制破解鎖定
+    window.lockdown = () => {};
+    window.SES = { enabled: false };
+
+    // --- 1. 初始化變數 ---
+    const videoElement = document.getElementById('input_video');
+    const canvasElement = document.getElementById('output_canvas');
+    const canvasCtx = canvasElement.getContext('2d');
+
+    let isDrawing = false;
+    let path = [];
+
+    // --- 2. 核心模擬函式 (掛載到 window 確保全域可用) ---
+    
+    window.dispatchMouseEvent = function(target, type, x, y) {
+        const iframeWindow = document.getElementById('game-iframe').contentWindow;
+        const ev = new MouseEvent(type, {
+            view: iframeWindow,
+            bubbles: true,
+            cancelable: true,
+            clientX: x,
+            clientY: y,
+            button: 0,
+            buttons: 1,
+            which: 1
+        });
+        target.dispatchEvent(ev);
+    };
+
+    window.simulateStroke = function(points) {
+    if (points.length < 3) return;
+
+    const iframe = document.getElementById('game-iframe');
+    const gameCanvas = iframe.contentDocument.querySelector('canvas');
+    const rect = iframe.getBoundingClientRect();
+
+    const getPos = (p) => {
+        return {
+            x: rect.left + ((1 - p.x) * rect.width),
+            y: rect.top + (p.y * rect.height)
+        };
+    };
+
+    const lastPoint = points[points.length - 1];
+    const endPos = getPos(lastPoint);
+
+    // 1. 按下
+    const startPos = getPos(points[0]);
+    dispatchMouseEvent(gameCanvas, 'mousedown', startPos.x, startPos.y);
+
+    // 2. 移動 (中間過程)
+    points.forEach((p) => {
+        const pos = getPos(p);
+        dispatchMouseEvent(gameCanvas, 'mousemove', pos.x, pos.y);
+    });
+
+    // 3. 【優化關鍵】在放開前，確保座標停留在終點
+    // 發送一個額外的 mousemove 確保遊戲引擎「定格」在終點
+    dispatchMouseEvent(gameCanvas, 'mousemove', endPos.x, endPos.y);
+
+    // 稍微延遲 20 毫秒再放開，模擬真人停頓
+    setTimeout(() => {
+        dispatchMouseEvent(gameCanvas, 'mouseup', endPos.x, endPos.y);
+        console.log("⚡️ 符咒施放完成");
+    }, 20); 
+};
+
+    // --- 3. 符咒辨識邏輯 ---
+    window.recognizeShape = function(points) {
+    console.log("嘗試辨識符咒，總點數:", points.length);
+
+    // 1. 基本檢查：點數要夠多才算數，防止隨意晃動觸發
+    if (points.length < 20) { // 可以調整，點數越多越精準，但需要畫越長
+        console.log("點數太少，不辨識。");
+        return;
+    }
+
+    const startPoint = points[0];
+    const midPoint = points[Math.floor(points.length / 2)];
+    const endPoint = points[points.length - 1];
+
+    // 計算總體的 X 和 Y 變動範圍 (0-1 比例)
+    let minX = 1, maxX = 0, minY = 1, maxY = 0;
+    points.forEach(p => {
+        minX = Math.min(minX, p.x);
+        maxX = Math.max(maxX, p.x);
+        minY = Math.min(minY, p.y);
+        maxY = Math.max(maxY, p.y);
+    });
+
+    const totalDx = maxX - minX; // X 軸總幅度
+    const totalDy = maxY - minY; // Y 軸總幅度
+
+    let shape = "Unknown";
+
+    // --- 符咒 1: 橫線 (Horizontal) ---
+    // 特點：X 軸幅度大，Y 軸幅度小
+    if (totalDx > 0.3 && totalDy < 0.1) { // X 軸至少變動 30%，Y 軸變動小於 10%
+        shape = "Horizontal";
+    }
+    // --- 符咒 2: 直線 (Vertical) ---
+    // 特點：Y 軸幅度大，X 軸幅度小
+    else if (totalDy > 0.3 && totalDx < 0.1) { // Y 軸至少變動 30%，X 軸變動小於 10%
+        shape = "Vertical";
+    }
+    // --- 符咒 3: V 型 (V-Shape) ---
+    // 特點：起始點和結束點在Y軸上方，中點在Y軸下方，且X軸有一定幅度
+    // 且起始點和結束點的Y值相近，比中點的Y值小
+    else if (totalDx > 0.2 && totalDy > 0.2 && // 總體幅度夠大
+             Math.abs(startPoint.y - endPoint.y) < 0.1 && // 起始結束 Y 值相近
+             midPoint.y > startPoint.y + 0.1 && // 中點明顯比起點低
+             midPoint.y > endPoint.y + 0.1 ) { // 中點明顯比終點低
+        shape = "V-Shape"; // 向上打開的 V (遊戲中的火球)
+    }
+
+    if (shape !== "Unknown") {
+        console.log(`%c 成功辨識符咒: lighting `, "background: #1a1a1a; color: #ffeb3b; font-size: 24px; padding: 5px; border-radius: 5px;");
+        simulateStroke(points);
+    } else {
+        console.log(`未辨識出符咒，總 Dx: ${totalDx.toFixed(2)}, Dy: ${totalDy.toFixed(2)}`);
+    }
+};
+
+    // --- 4. MediaPipe 設定 ---
+    const hands = new Hands({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+
+    hands.setOptions({
+        maxNumHands: 1,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+    });
+
+    hands.onResults((results) => {
+        canvasElement.width = window.innerWidth;
+        canvasElement.height = window.innerHeight;
+        canvasCtx.save();
+        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            const landmarks = results.multiHandLandmarks[0];
+            const indexTip = landmarks[8];
+            const thumbTip = landmarks[4];
+            const distance = Math.hypot(indexTip.x - thumbTip.x, indexTip.y - thumbTip.y);
+            const pressed = distance < 0.1;
+
+            if (pressed) {
+                if (!isDrawing) { isDrawing = true; path = []; }
+                path.push({ x: indexTip.x, y: indexTip.y });
+            } else {
+                if (isDrawing) { isDrawing = false; recognizeShape(path); }
+            }
+
+            canvasCtx.beginPath();
+            canvasCtx.arc(indexTip.x * canvasElement.width, indexTip.y * canvasElement.height, 15, 0, 2 * Math.PI);
+            canvasCtx.fillStyle = pressed ? "yellow" : "cyan";
+            canvasCtx.fill();
+        }
+        canvasCtx.restore();
+    });
+
+    const camera = new Camera(videoElement, {
+        onFrame: async () => { await hands.send({image: videoElement}); },
+        width: 1280,
+        height: 720
+    });
+    camera.start();
+</script>
