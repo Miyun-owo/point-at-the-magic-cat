@@ -18,20 +18,24 @@
 </iframe>
 
   <script>
-    // 0. 強制破解鎖定
+    // 繞過 Hexo 網頁安全設定 (不然不能玩)
     window.lockdown = () => {};
     window.SES = { enabled: false };
 
-    // --- 1. 初始化變數 ---
+    // 鏡頭部分
     const videoElement = document.getElementById('input_video');
     const canvasElement = document.getElementById('output_canvas');
     const canvasCtx = canvasElement.getContext('2d');
 
     let isDrawing = false;
     let path = [];
+    let pathColor = "rgba(200, 150, 255, 0.6)"; //紫色軌跡
+    let successTimeout = null; // 用於重設顏色的計時器
 
-    // --- 2. 核心模擬函式 (掛載到 window 確保全域可用) ---
-    
+    let smoothedIndex = { x: 0.5, y: 0.5 };
+    const smoothingFactor = 0.25; //smooth index
+
+    // 模擬函式 (掛載到 window 確保全域可用)
     window.dispatchMouseEvent = function(target, type, x, y) {
         const iframeWindow = document.getElementById('game-iframe').contentWindow;
         const ev = new MouseEvent(type, {
@@ -48,7 +52,7 @@
     };
 
     window.simulateStroke = function(points) {
-    if (points.length < 3) return;
+    if (points.length < 2) return;
 
     const iframe = document.getElementById('game-iframe');
     const gameCanvas = iframe.contentDocument.querySelector('canvas');
@@ -59,41 +63,43 @@
             x: rect.left + ((1 - p.x) * rect.width),
             y: rect.top + (p.y * rect.height)
         };
-    };
+    }; //鏡像!!!
 
     const lastPoint = points[points.length - 1];
     const endPos = getPos(lastPoint);
 
-    // 1. 按下
+    //按下滑鼠
     const startPos = getPos(points[0]);
     dispatchMouseEvent(gameCanvas, 'mousedown', startPos.x, startPos.y);
 
-    // 2. 移動 (中間過程)
+    //移動 (中間過程)
     points.forEach((p) => {
         const pos = getPos(p);
         dispatchMouseEvent(gameCanvas, 'mousemove', pos.x, pos.y);
     });
 
-    // 3. 【優化關鍵】在放開前，確保座標停留在終點
-    // 發送一個額外的 mousemove 確保遊戲引擎「定格」在終點
+    //在放開前，確保座標停留在終點
+    //發送一個額外的 mousemove 確保遊戲引擎「定格」在終點
     dispatchMouseEvent(gameCanvas, 'mousemove', endPos.x, endPos.y);
 
-    // 稍微延遲 20 毫秒再放開，模擬真人停頓
+    //稍微延遲8 ms再放開
     setTimeout(() => {
         dispatchMouseEvent(gameCanvas, 'mouseup', endPos.x, endPos.y);
-        console.log("⚡️ 符咒施放完成");
-    }, 20); 
+        console.log("符咒施放完成");
+    }, 8); 
 };
 
-    // --- 3. 符咒辨識邏輯 ---
+    //符咒辨識邏輯
     window.recognizeShape = function(points) {
     console.log("嘗試辨識符咒，總點數:", points.length);
 
-    // 1. 基本檢查：點數要夠多才算數，防止隨意晃動觸發
-    if (points.length < 20) { // 可以調整，點數越多越精準，但需要畫越長
+    //防止隨意晃動觸發
+    if (points.length < 4) { //點數越多越精準，但需要畫越長
         console.log("點數太少，不辨識。");
         return;
     }
+
+    /* 辨識邏輯 1，使用相對位置與x/y軸的長度變化
 
     const startPoint = points[0];
     const midPoint = points[Math.floor(points.length / 2)];
@@ -113,35 +119,128 @@
 
     let shape = "Unknown";
 
-    // --- 符咒 1: 橫線 (Horizontal) ---
+    //畫橫線
     // 特點：X 軸幅度大，Y 軸幅度小
-    if (totalDx > 0.3 && totalDy < 0.1) { // X 軸至少變動 30%，Y 軸變動小於 10%
+    if (totalDx > 0.2 && totalDy < 0.15) {
         shape = "Horizontal";
     }
-    // --- 符咒 2: 直線 (Vertical) ---
+    //畫直線
     // 特點：Y 軸幅度大，X 軸幅度小
-    else if (totalDy > 0.3 && totalDx < 0.1) { // Y 軸至少變動 30%，X 軸變動小於 10%
+    else if (totalDy > 0.2 && totalDx < 0.15) {
         shape = "Vertical";
     }
-    // --- 符咒 3: V 型 (V-Shape) ---
+
+    //V
     // 特點：起始點和結束點在Y軸上方，中點在Y軸下方，且X軸有一定幅度
-    // 且起始點和結束點的Y值相近，比中點的Y值小
-    else if (totalDx > 0.2 && totalDy > 0.2 && // 總體幅度夠大
-             Math.abs(startPoint.y - endPoint.y) < 0.1 && // 起始結束 Y 值相近
+    else if (totalDx > 0.15 && totalDy > 0.15 && // 總體幅度夠大
+             // Math.abs(startPoint.y - endPoint.y) < 0.15 && // 起始結束 Y 值相近
              midPoint.y > startPoint.y + 0.1 && // 中點明顯比起點低
              midPoint.y > endPoint.y + 0.1 ) { // 中點明顯比終點低
-        shape = "V-Shape"; // 向上打開的 V (遊戲中的火球)
+        shape = "V-Shape"; // 向上打開的 V
+    }
+
+    //倒 V
+    // 特點：中點在上方（Y值小），起始與結束點在下方（Y值大）
+    else if (totalDx > 0.15 && totalDy > 0.15 && 
+             // Math.abs(startPoint.y - endPoint.y) < 0.2 && 
+             midPoint.y < startPoint.y - 0.1 && 
+             midPoint.y < endPoint.y - 0.1) {
+        shape = "Inverted-V";
+    }
+
+    //閃電
+    // 特點：通常有兩次折返。這裡簡化判斷：起點與終點 X 距離大，但路徑中間經歷了 X 的往返
+    // 我們檢查 1/4 處與 3/4 處的 X 關係
+    else if (totalDx > 0.2 && totalDy > 0.3) {
+        const p25 = points[Math.floor(points.length * 0.25)];
+        const p75 = points[Math.floor(points.length * 0.75)];
+        // 典型的 Z 字：起點在左上，p25在右，p75在左，終點在右
+        if (p25.x > startPoint.x && p75.x < p25.x && endPoint.x > p75.x) {
+            shape = "Lightning";
+        }
+    }
+
+    // --- 符咒 6: 愛心 (Heart) ---
+    // 特點：起點與終點通常在中間下方匯合，中點(頂部) Y 值極小，且 X 幅度寬
+    else if (totalDx > 0.3 && totalDy > 0.3) {
+        const distStartEnd = Math.hypot(startPoint.x - endPoint.x, startPoint.y - endPoint.y);
+        // 如果起點跟終點靠得很近，且中點（愛心底部或頂部）拉得很開
+        if (distStartEnd < 0.15 && midPoint.y < startPoint.y - 0.2) {
+            shape = "Heart";
+        }
+    }
+        */
+
+    /* 辨識邏輯 2:使用相對極值，不用靠x/y軸 */
+    const startPoint = points[0];
+    const endPoint = points[points.length - 1];
+
+    // 找出路徑中的最高點與最低點 (Y 軸) 以及左右極限 (X 軸)
+    let minX = 1, maxX = 0, minY = 1, maxY = 0;
+    points.forEach(p => {
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.y > maxY) maxY = p.y;
+    });
+
+    const totalDx = maxX - minX;
+    const totalDy = maxY - minY;
+    const distStartEnd = Math.hypot(startPoint.x - endPoint.x, startPoint.y - endPoint.y);
+
+    let shape = "Unknown";
+
+    // 愛心
+    // 起點終點接近，底部明顯低於起點
+    if (distStartEnd < 0.2 && maxY > startPoint.y + 0.2) {
+        shape = "Heart";
+    }
+    // 各種奇怪的 V
+    // 最低點<<起點；寬度>0.15
+    else if (maxY > startPoint.y + 0.12 && totalDx > 0.12 && totalDy > 0.12) {
+        shape = "V-Shape";
+    }
+    // 顛倒的 V
+    // 最高點>>起點；寬度>0.15
+    else if (minY < startPoint.y - 0.12 && totalDx > 0.12 && totalDy > 0.12) {
+        shape = "Inverted-V";
+    }
+    // 閃電
+    // 有明顯的折返，不論順序
+    // 中點超越起點與終點的寬度
+    else if (totalDx > 0.2 && totalDy > 0.3) {
+        const midIdx = Math.floor(points.length / 2);
+        if ((points[midIdx].x > maxX * 0.8 && endPoint.x < startPoint.x) || 
+            (points[midIdx].x < minX * 1.2 && endPoint.x > startPoint.x)) {
+            shape = "Lightning";
+        }
+    }
+    // 橫線
+    // 寬度夠長，可以斜著畫
+    else if (totalDx > 0.2 && totalDy < totalDx * 0.8) {
+        shape = "Horizontal";
+    }
+    // 直線
+    else if (totalDy > 0.25 && totalDx < totalDy * 0.8) {
+        shape = "Vertical";
     }
 
     if (shape !== "Unknown") {
         console.log(`%c 成功辨識符咒: lighting `, "background: #1a1a1a; color: #ffeb3b; font-size: 24px; padding: 5px; border-radius: 5px;");
+        pathColor = "rgba(144, 238, 144, 0.9)";
         simulateStroke(points);
+        clearTimeout(successTimeout);
+        successTimeout = setTimeout(() => {
+            pathColor = "rgba(200, 150, 255, 0.6)";
+            path = []; // 清空路徑
+        }, 500);
     } else {
+        setTimeout(() => { path = []; }, 100);
         console.log(`未辨識出符咒，總 Dx: ${totalDx.toFixed(2)}, Dy: ${totalDy.toFixed(2)}`);
     }
 };
 
-    // --- 4. MediaPipe 設定 ---
+    //MediaPipe設定
     const hands = new Hands({
         locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
     });
@@ -161,21 +260,44 @@
 
         if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
             const landmarks = results.multiHandLandmarks[0];
-            const indexTip = landmarks[8];
+            const indexTip = landmarks[8]; //手的節點編號
             const thumbTip = landmarks[4];
+
+            //平滑化
+            // 公式：新位置 = (舊位置 * (1 - 系數)) + (感測位置 * 系數)
+            smoothedIndex.x = smoothedIndex.x * (1 - smoothingFactor) + indexTip.x * smoothingFactor;
+            smoothedIndex.y = smoothedIndex.y * (1 - smoothingFactor) + indexTip.y * smoothingFactor;
+
+            // 計算距離，原始點位判斷比較沒延遲
             const distance = Math.hypot(indexTip.x - thumbTip.x, indexTip.y - thumbTip.y);
             const pressed = distance < 0.1;
-
+        
             if (pressed) {
-                if (!isDrawing) { isDrawing = true; path = []; }
+                if (!isDrawing) { isDrawing = true; path = []; pathColor = "rgba(200, 150, 255, 0.6)";}
                 path.push({ x: indexTip.x, y: indexTip.y });
             } else {
                 if (isDrawing) { isDrawing = false; recognizeShape(path); }
             }
 
+            // --- 繪製軌跡 ---
+            if (path.length > 1) {
+                canvasCtx.beginPath();
+                canvasCtx.lineWidth = 10;
+                canvasCtx.lineCap = "round";
+                canvasCtx.lineJoin = "round";
+                canvasCtx.strokeStyle = pathColor;
+                canvasCtx.moveTo(path[0].x * canvasElement.width, path[0].y * canvasElement.height);
+                for (let i = 1; i < path.length; i++) {
+                    canvasCtx.lineTo(path[i].x * canvasElement.width, path[i].y * canvasElement.height);
+                }
+                canvasCtx.stroke();
+            }
+
             canvasCtx.beginPath();
-            canvasCtx.arc(indexTip.x * canvasElement.width, indexTip.y * canvasElement.height, 15, 0, 2 * Math.PI);
-            canvasCtx.fillStyle = pressed ? "yellow" : "cyan";
+            canvasCtx.arc(indexTip.x * canvasElement.width, indexTip.y * canvasElement.height, 10, 0, 2 * Math.PI);
+            canvasCtx.fillStyle = pressed ? "#FFEB3B" : "#FFFFFF";
+            canvasCtx.shadowBlur = 10;
+            canvasCtx.shadowColor = pressed ? "rgba(255, 235, 59, 0.8)" : "rgba(255, 255, 255, 0.5)";
             canvasCtx.fill();
         }
         canvasCtx.restore();
