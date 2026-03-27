@@ -9,7 +9,12 @@ Demo
 =========
 This demo was shown on SITCON (Students’ Information Technology Conference) in 2026 in Taipei.
 
-Slide Link (Google Drive) :
+We recommend to play this demo on PC or notebook rather than portable devices.
+
+Demo Link : [Click Me](https://miyun-owo.github.io/magic-cat-academy-Google/combine.html)
+
+Slide Link (Google Drive) : [Click Me](https://drive.google.com/file/d/1_rHk249IQ6-UcRCbeVp5RALYHRjJPGjv/view?usp=sharing)
+
 Offical Video Link (Youtube) : 
 
 
