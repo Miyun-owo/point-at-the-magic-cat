@@ -8,6 +8,11 @@
   <canvas id="output_canvas" style="width: 100%; height: 100%; transform: scaleX(-1);"></canvas>
 </div>
 
+<div id="debug-container" style="position: fixed; bottom: 20px; right: 20px; width: 320px; height: 180px; border: 2px solid #555; background: #000; z-index: 10000;">
+  <canvas id="debug_canvas" style="width: 100%; height: 100%; transform: scaleX(-1);"></canvas>
+  <div style="position: absolute; top: 5px; left: 5px; color: white; background: rgba(0,0,0,0.5); font-size: 12px; padding: 2px 5px;">Debug View</div>
+</div>
+
 <iframe 
   id="game-iframe" 
   src="index.html" 
@@ -34,6 +39,10 @@
 
     let smoothedIndex = { x: 0.5, y: 0.5 };
     const smoothingFactor = 0.25; //smooth index
+
+    // Debug Canvas
+    const debugCanvas = document.getElementById('debug_canvas');
+    const debugCtx = debugCanvas.getContext('2d');
 
     // 模擬函式 (掛載到 window 確保全域可用)
     window.dispatchMouseEvent = function(target, type, x, y) {
@@ -181,15 +190,53 @@
     });
 
     hands.onResults((results) => {
+        //Game Canvas Size
         canvasElement.width = window.innerWidth;
         canvasElement.height = window.innerHeight;
         canvasCtx.save();
         canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
+        // Debug Canvas Size
+        debugCanvas.width = videoElement.videoWidth;
+        debugCanvas.height = videoElement.videoHeight;
+        debugCtx.save();
+
+        debugCtx.drawImage(results.image, 0, 0, debugCanvas.width, debugCanvas.height);
+
         if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
             const landmarks = results.multiHandLandmarks[0];
             const indexTip = landmarks[8]; //手的節點編號
             const thumbTip = landmarks[4];
+
+            // Debug canvas 中的標記
+            const activeLandmarks = [4, 8];
+            activeLandmarks.forEach(idx => {
+            const point = landmarks[idx];
+            const x = point.x * debugCanvas.width;
+            const y = point.y * debugCanvas.height;
+
+            // Draw a dot
+            debugCtx.beginPath();
+            debugCtx.arc(x, y, 8, 0, 2 * Math.PI);
+            debugCtx.fillStyle = (idx === 8) ? "#00FF00" : "#FF0000"; // 食指綠色，拇指紅色
+            debugCtx.fill();
+            debugCtx.strokeStyle = "white";
+            debugCtx.lineWidth = 5;
+            debugCtx.stroke();
+            });
+
+            // Draw a line
+            const dist = Math.hypot(indexTip.x - thumbTip.x, indexTip.y - thumbTip.y);
+            if (dist < 0.2) { 
+                debugCtx.beginPath();
+                debugCtx.setLineDash([5, 5]); // 虛線
+                debugCtx.moveTo(indexTip.x * debugCanvas.width, indexTip.y * debugCanvas.height);
+                debugCtx.lineTo(thumbTip.x * debugCanvas.width, thumbTip.y * debugCanvas.height);
+                debugCtx.strokeStyle = dist < 0.1 ? "yellow" : "white"; // 捏合成功變黃色
+                debugCtx.lineWidth = 5;
+                debugCtx.stroke();
+                debugCtx.setLineDash([]); // 恢復實線
+    }
 
             //平滑化
             // 公式：新位置 = (舊位置 * (1 - 平滑係數)) + (感測位置 * 平滑係數)
