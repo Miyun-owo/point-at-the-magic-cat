@@ -99,79 +99,7 @@
         return;
     }
 
-    /* 辨識邏輯 1，使用相對位置與x/y軸的長度變化
-
-    const startPoint = points[0];
-    const midPoint = points[Math.floor(points.length / 2)];
-    const endPoint = points[points.length - 1];
-
-    // 計算總體的 X 和 Y 變動範圍 (0-1 比例)
-    let minX = 1, maxX = 0, minY = 1, maxY = 0;
-    points.forEach(p => {
-        minX = Math.min(minX, p.x);
-        maxX = Math.max(maxX, p.x);
-        minY = Math.min(minY, p.y);
-        maxY = Math.max(maxY, p.y);
-    });
-
-    const totalDx = maxX - minX; // X 軸總幅度
-    const totalDy = maxY - minY; // Y 軸總幅度
-
-    let shape = "Unknown";
-
-    //畫橫線
-    // 特點：X 軸幅度大，Y 軸幅度小
-    if (totalDx > 0.2 && totalDy < 0.15) {
-        shape = "Horizontal";
-    }
-    //畫直線
-    // 特點：Y 軸幅度大，X 軸幅度小
-    else if (totalDy > 0.2 && totalDx < 0.15) {
-        shape = "Vertical";
-    }
-
-    //V
-    // 特點：起始點和結束點在Y軸上方，中點在Y軸下方，且X軸有一定幅度
-    else if (totalDx > 0.15 && totalDy > 0.15 && // 總體幅度夠大
-             // Math.abs(startPoint.y - endPoint.y) < 0.15 && // 起始結束 Y 值相近
-             midPoint.y > startPoint.y + 0.1 && // 中點明顯比起點低
-             midPoint.y > endPoint.y + 0.1 ) { // 中點明顯比終點低
-        shape = "V-Shape"; // 向上打開的 V
-    }
-
-    //倒 V
-    // 特點：中點在上方（Y值小），起始與結束點在下方（Y值大）
-    else if (totalDx > 0.15 && totalDy > 0.15 && 
-             // Math.abs(startPoint.y - endPoint.y) < 0.2 && 
-             midPoint.y < startPoint.y - 0.1 && 
-             midPoint.y < endPoint.y - 0.1) {
-        shape = "Inverted-V";
-    }
-
-    //閃電
-    // 特點：通常有兩次折返。這裡簡化判斷：起點與終點 X 距離大，但路徑中間經歷了 X 的往返
-    // 我們檢查 1/4 處與 3/4 處的 X 關係
-    else if (totalDx > 0.2 && totalDy > 0.3) {
-        const p25 = points[Math.floor(points.length * 0.25)];
-        const p75 = points[Math.floor(points.length * 0.75)];
-        // 典型的 Z 字：起點在左上，p25在右，p75在左，終點在右
-        if (p25.x > startPoint.x && p75.x < p25.x && endPoint.x > p75.x) {
-            shape = "Lightning";
-        }
-    }
-
-    // --- 符咒 6: 愛心 (Heart) ---
-    // 特點：起點與終點通常在中間下方匯合，中點(頂部) Y 值極小，且 X 幅度寬
-    else if (totalDx > 0.3 && totalDy > 0.3) {
-        const distStartEnd = Math.hypot(startPoint.x - endPoint.x, startPoint.y - endPoint.y);
-        // 如果起點跟終點靠得很近，且中點（愛心底部或頂部）拉得很開
-        if (distStartEnd < 0.15 && midPoint.y < startPoint.y - 0.2) {
-            shape = "Heart";
-        }
-    }
-        */
-
-    /* 辨識邏輯 2:使用相對極值，不用靠x/y軸 */
+    /*使用相對極值，不用靠x/y軸 */
     const startPoint = points[0];
     const endPoint = points[points.length - 1];
 
@@ -196,12 +124,12 @@
         shape = "Heart";
     }
     // 各種奇怪的 V
-    // 最低點<<起點；寬度>0.15
+    // 最低點<<起點；寬度>0.12
     else if (maxY > startPoint.y + 0.12 && totalDx > 0.12 && totalDy > 0.12) {
         shape = "V-Shape";
     }
     // 顛倒的 V
-    // 最高點>>起點；寬度>0.15
+    // 最高點>>起點；寬度>0.12
     else if (minY < startPoint.y - 0.12 && totalDx > 0.12 && totalDy > 0.12) {
         shape = "Inverted-V";
     }
@@ -264,7 +192,7 @@
             const thumbTip = landmarks[4];
 
             //平滑化
-            // 公式：新位置 = (舊位置 * (1 - 系數)) + (感測位置 * 系數)
+            // 公式：新位置 = (舊位置 * (1 - 平滑係數)) + (感測位置 * 平滑係數)
             smoothedIndex.x = smoothedIndex.x * (1 - smoothingFactor) + indexTip.x * smoothingFactor;
             smoothedIndex.y = smoothedIndex.y * (1 - smoothingFactor) + indexTip.y * smoothingFactor;
 
