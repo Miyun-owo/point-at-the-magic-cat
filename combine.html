@@ -205,8 +205,13 @@
 
         if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
             const landmarks = results.multiHandLandmarks[0];
-            const indexTip = landmarks[8]; //手的節點編號
-            const thumbTip = landmarks[4];
+            const rawIndexTip = landmarks[8]; //手的節點編號
+            const rawThumbTip = landmarks[4];
+
+            //平滑化座標
+            const currentAlpha = 0.2; 
+            smoothedIndex.x = smoothedIndex.x * (1 - currentAlpha) + rawIndexTip.x * currentAlpha;
+            smoothedIndex.y = smoothedIndex.y * (1 - currentAlpha) + rawIndexTip.y * currentAlpha;
 
             // Debug canvas 中的標記
             const activeLandmarks = [4, 8];
@@ -226,35 +231,30 @@
             });
 
             // Draw a line
-            const dist = Math.hypot(indexTip.x - thumbTip.x, indexTip.y - thumbTip.y);
+            const dist = Math.hypot(rawIndexTip.x - rawThumbTip.x, rawIndexTip.y - rawThumbTip.y);
             if (dist < 0.2) { 
                 debugCtx.beginPath();
                 debugCtx.setLineDash([5, 5]); // 虛線
-                debugCtx.moveTo(indexTip.x * debugCanvas.width, indexTip.y * debugCanvas.height);
-                debugCtx.lineTo(thumbTip.x * debugCanvas.width, thumbTip.y * debugCanvas.height);
+                debugCtx.moveTo(rawIndexTip.x * debugCanvas.width, rawIndexTip.y * debugCanvas.height);
+                debugCtx.lineTo(rawThumbTip.x * debugCanvas.width, rawThumbTip.y * debugCanvas.height);
                 debugCtx.strokeStyle = dist < 0.1 ? "yellow" : "white"; // 捏合成功變黃色
                 debugCtx.lineWidth = 5;
                 debugCtx.stroke();
                 debugCtx.setLineDash([]); // 恢復實線
-    }
+            }
 
-            //平滑化
-            // 公式：新位置 = (舊位置 * (1 - 平滑係數)) + (感測位置 * 平滑係數)
-            smoothedIndex.x = smoothedIndex.x * (1 - smoothingFactor) + indexTip.x * smoothingFactor;
-            smoothedIndex.y = smoothedIndex.y * (1 - smoothingFactor) + indexTip.y * smoothingFactor;
-
-            // 計算距離，原始點位判斷比較沒延遲
-            const distance = Math.hypot(indexTip.x - thumbTip.x, indexTip.y - thumbTip.y);
+            // Calculate distance
+            const distance = Math.hypot(rawIndexTip.x - rawThumbTip.x, rawIndexTip.y - rawThumbTip.y);
             const pressed = distance < 0.1;
         
             if (pressed) {
                 if (!isDrawing) { isDrawing = true; path = []; pathColor = "rgba(200, 150, 255, 0.6)";}
-                path.push({ x: indexTip.x, y: indexTip.y });
+                path.push({ x: smoothedIndex.x, y: smoothedIndex.y });
             } else {
                 if (isDrawing) { isDrawing = false; recognizeShape(path); }
             }
 
-            // --- 繪製軌跡 ---
+            //繪製軌跡
             if (path.length > 1) {
                 canvasCtx.beginPath();
                 canvasCtx.lineWidth = 10;
@@ -268,8 +268,9 @@
                 canvasCtx.stroke();
             }
 
+            // UI Indicator
             canvasCtx.beginPath();
-            canvasCtx.arc(indexTip.x * canvasElement.width, indexTip.y * canvasElement.height, 10, 0, 2 * Math.PI);
+            canvasCtx.arc(smoothedIndex.x * canvasElement.width, smoothedIndex.y * canvasElement.height, 10, 0, 2 * Math.PI);
             canvasCtx.fillStyle = pressed ? "#FFEB3B" : "#FFFFFF";
             canvasCtx.shadowBlur = 10;
             canvasCtx.shadowColor = pressed ? "rgba(255, 235, 59, 0.8)" : "rgba(255, 255, 255, 0.5)";
