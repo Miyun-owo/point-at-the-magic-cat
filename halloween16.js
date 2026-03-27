@@ -3049,13 +3049,13 @@
       , vk = 83 * bk.length
       , wk = 83 * ck.length
       , xk = 83 * dk.length
-      , yk = 83 * kk.length
-      , zk = 83 * mk.length
+      , yk = 110 * kk.length //main enemy
+      , zk = 125 * mk.length // enemy 2
       , Ak = new p(475,181)
       , Bk = new p(Ak.x - 90,Ak.y)
-      , Ck = 83 * pk.length
-      , Dk = 83 * qk.length
-      , Ek = 83 * rk.length;
+      , Ck = 130 * pk.length //enemy 3 (9 frames)
+      , Dk = 140 * qk.length // enemy 4 (21 frames)
+      , Ek = 135 * rk.length; // enemy 5 (16 frames)
     sk.prototype.update = function(a) {
         this.j && 5 == this.j.state && (this.j = null,
         E(this),
