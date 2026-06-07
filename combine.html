@@ -2,6 +2,52 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
 
+<style>
+  :root {
+    --viewport-width: 100vw;
+    --viewport-height: 100vh;
+    --viewport-left: 0px;
+    --viewport-top: 0px;
+    --game-aspect: 1.7777777778;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: #000;
+  }
+
+  body {
+    min-width: 100vw;
+    min-height: 100vh;
+  }
+
+  #game-shell {
+    position: fixed;
+    left: var(--viewport-left);
+    top: var(--viewport-top);
+    width: var(--viewport-width);
+    height: var(--viewport-height);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: #000;
+  }
+
+  #game-iframe {
+    display: block;
+    width: min(var(--viewport-width), calc(var(--viewport-height) * var(--game-aspect)));
+    height: min(var(--viewport-height), calc(var(--viewport-width) / var(--game-aspect)));
+    max-width: 100%;
+    max-height: 100%;
+    border: 0;
+    background: #000;
+  }
+</style>
 
 <div id="gesture-layer" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; pointer-events: none;">
   <video id="input_video" style="display:none;"></video>
@@ -13,14 +59,16 @@
   <div style="position: absolute; top: 5px; left: 5px; color: white; background: rgba(0,0,0,0.5); font-size: 12px; padding: 2px 5px;">Debug View</div>
 </div>
 
-<iframe 
-  id="game-iframe" 
-  src="index.html" 
-  width="1920" 
-  height="850" 
-  frameborder="0" 
-  allow="autoplay">
-</iframe>
+<div id="game-shell">
+  <iframe
+    id="game-iframe"
+    src="index.html"
+    width="1920"
+    height="1080"
+    frameborder="0"
+    allow="autoplay">
+  </iframe>
+</div>
 
   <script>
     // 繞過 Hexo 網頁安全設定 (不然不能玩)
@@ -44,20 +92,82 @@
     const debugCanvas = document.getElementById('debug_canvas');
     const debugCtx = debugCanvas.getContext('2d');
 
+    const setViewportSize = () => {
+        const viewport = window.visualViewport;
+        const width = viewport ? viewport.width : window.innerWidth;
+        const height = viewport ? viewport.height : window.innerHeight;
+        const left = viewport ? viewport.offsetLeft : 0;
+        const top = viewport ? viewport.offsetTop : 0;
+        document.documentElement.style.setProperty('--viewport-width', `${width}px`);
+        document.documentElement.style.setProperty('--viewport-height', `${height}px`);
+        document.documentElement.style.setProperty('--viewport-left', `${left}px`);
+        document.documentElement.style.setProperty('--viewport-top', `${top}px`);
+    };
+
+    setViewportSize();
+    window.addEventListener('resize', setViewportSize);
+    window.addEventListener('orientationchange', setViewportSize);
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', setViewportSize);
+        window.visualViewport.addEventListener('scroll', setViewportSize);
+    }
+
+    //手機容錯率
+    let unpressCount = 0;
+
     // 模擬函式 (掛載到 window 確保全域可用)
     window.dispatchMouseEvent = function(target, type, x, y) {
         const iframeWindow = document.getElementById('game-iframe').contentWindow;
-        const ev = new MouseEvent(type, {
-            view: iframeWindow,
-            bubbles: true,
-            cancelable: true,
-            clientX: x,
-            clientY: y,
-            button: 0,
-            buttons: 1,
-            which: 1
-        });
-        target.dispatchEvent(ev);
+        const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+        let ev = null;
+
+        // 一次觸發一個避免打架
+        if (isTouchDevice) {
+            const touchTypeMap = {
+            'mousedown': 'touchstart',
+            'mousemove': 'touchmove',
+            'mouseup': 'touchend'
+            };
+
+            const touchType = touchTypeMap[type];
+            if (touchType) {
+            // 建立一個觸控點物件
+            const touch = new Touch({
+                identifier: 123,
+                target: target,
+                clientX: x,
+                clientY: y,
+                pageX: x,
+                pageY: y,
+                radiusX: 5,
+                radiusY: 5,
+                force: 0.5,
+            });
+
+            ev = new TouchEvent(touchType, {
+                view: iframeWindow,
+                bubbles: true,
+                cancelable: true,
+                touches: touchType === 'touchend' ? [] : [touch], // 結束touches是空的
+                targetTouches: touchType === 'touchend' ? [] : [touch],
+                changedTouches: [touch]
+            });
+        }
+        }
+        else{
+            //電腦版
+            ev = new MouseEvent(type, {
+                view: iframeWindow,
+                bubbles: true,
+                cancelable: true,
+                clientX: x,
+                clientY: y,
+                button: 0,
+                buttons: 1,
+                which: 1
+            });
+        }
+        if (ev) target.dispatchEvent(ev);
     };
 
     window.simulateStroke = function(points) {
@@ -66,16 +176,20 @@
     const iframe = document.getElementById('game-iframe');
     const gameCanvas = iframe.contentDocument.querySelector('canvas');
     const rect = iframe.getBoundingClientRect();
-
     const getPos = (p) => {
+        const viewportX = (1 - p.x) * window.innerWidth;
+        const viewportY = p.y * window.innerHeight;
         return {
-            x: rect.left + ((1 - p.x) * rect.width),
-            y: rect.top + (p.y * rect.height)
+            x: viewportX - rect.left,
+            y: viewportY - rect.top
         };
     }; //鏡像!!!
 
     const lastPoint = points[points.length - 1];
     const endPos = getPos(lastPoint);
+
+    //手機板優化
+    iframe.focus()
 
     //按下滑鼠
     const startPos = getPos(points[0]);
@@ -91,11 +205,9 @@
     //發送一個額外的 mousemove 確保遊戲引擎「定格」在終點
     dispatchMouseEvent(gameCanvas, 'mousemove', endPos.x, endPos.y);
 
-    //稍微延遲8 ms再放開
-    setTimeout(() => {
-        dispatchMouseEvent(gameCanvas, 'mouseup', endPos.x, endPos.y);
+    // 同步放開，避免 CSP 封鎖延遲 callback 造成釋放事件遺失
+    dispatchMouseEvent(gameCanvas, 'mouseup', endPos.x, endPos.y);
         console.log("符咒施放完成");
-    }, 8); 
 };
 
     //符咒辨識邏輯
@@ -133,13 +245,13 @@
         shape = "Heart";
     }
     // 各種奇怪的 V
-    // 最低點<<起點；寬度>0.12
-    else if (maxY > startPoint.y + 0.12 && totalDx > 0.12 && totalDy > 0.12) {
+    // 最低點<<起點；寬度>0.08
+    else if (maxY > startPoint.y + 0.08 && totalDx > 0.08 && totalDy > 0.08) {
         shape = "V-Shape";
     }
     // 顛倒的 V
-    // 最高點>>起點；寬度>0.12
-    else if (minY < startPoint.y - 0.12 && totalDx > 0.12 && totalDy > 0.12) {
+    // 最高點>>起點；寬度>0.08
+    else if (minY < startPoint.y - 0.08 && totalDx > 0.08 && totalDy > 0.08) {
         shape = "Inverted-V";
     }
     // 閃電
@@ -246,12 +358,18 @@
             // Calculate distance
             const distance = Math.hypot(rawIndexTip.x - rawThumbTip.x, rawIndexTip.y - rawThumbTip.y);
             const pressed = distance < 0.1;
-        
+
             if (pressed) {
+                unpressCount = 0; // 只要有捏合，計數歸零
                 if (!isDrawing) { isDrawing = true; path = []; pathColor = "rgba(200, 150, 255, 0.6)";}
                 path.push({ x: smoothedIndex.x, y: smoothedIndex.y });
             } else {
-                if (isDrawing) { isDrawing = false; recognizeShape(path); }
+                unpressCount++; // 沒有捏合，計數增加
+                if (isDrawing && unpressCount > 3) {
+                    isDrawing = false;
+                    recognizeShape(path);
+                    unpressCount = 0;
+                }
             }
 
             //繪製軌跡
