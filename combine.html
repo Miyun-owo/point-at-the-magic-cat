@@ -65,6 +65,9 @@
   <div style="position: absolute; top: 5px; left: 5px; color: white; background: rgba(0,0,0,0.5); font-size: 12px; padding: 2px 5px;">Debug View</div>
 </div>
 
+<button id="fullscreen-btn" style="position: fixed; top: 15px; left: 15px; z-index: 10005; padding: 10px 15px; background: rgba(255,255,255,0.8); border: none; border-radius: 5px; font-weight: bold; cursor: pointer;box-shadow: 0 2px 5px rgba(0,0,0,0.3);">
+</button>
+
 <div id="game-shell">
   <iframe
     id="game-iframe"
@@ -409,4 +412,29 @@
         height: 720
     });
     camera.start();
+    
+    const fsBtn = document.getElementById('fullscreen-btn');
+
+    fsBtn.addEventListener('click', () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen()
+                .then(() => {
+                    fsBtn.innerText = "Exit Fullscreen";
+                })
+                .catch((err) => {
+                    alert(`Can't enter fullscreen: ${err.message}`);
+                });
+        } else {
+            // 退出全螢幕
+            document.exitFullscreen();
+            fsBtn.innerText = "Enter Fullscreen ";
+        }
+    });
+
+    document.addEventListener('fullscreenchange', () => {
+        if (typeof setViewportSize === 'function') {
+            setTimeout(setViewportSize, 300);
+        }
+    });
+    
 </script>
