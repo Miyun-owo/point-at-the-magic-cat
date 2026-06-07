@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Beginner's Guide</title>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --game-aspect: 1.7777777778;
+      --viewport-width: 100vw;
+      --viewport-height: 100vh;
+      --viewport-left: 0px;
+      --viewport-top: 0px;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    #guide-shell {
+      position: fixed;
+      top: var(--viewport-top);
+      left: var(--viewport-left);
+      width: 100vw;
+      width: 100dvw;
+      height: 100vh;
+      height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: #000;
+      z-index: 1;
+    }
+
+    #stage {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 100%;
+      height: 100%;
+      max-width: calc(100vh * var(--game-aspect));
+      max-height: calc(100vw / var(--game-aspect));
+      max-width: calc(100dvh * var(--game-aspect));
+      max-height: calc(100dvw / var(--game-aspect));
+      transform: translate(-50%, -50%);
+      overflow: hidden;
+      background: #050505;
+    }
+
+    #input_video,
+    #gesture_canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    #input_video {
+      object-fit: contain;
+      transform: scaleX(-1);
+      background: #000;
+    }
+
+    #gesture_canvas {
+      pointer-events: none;
+      z-index: 4;
+    }
+
+    #coach-layer {
+      position: absolute;
+      left: clamp(16px, 4vw, 48px);
+      right: clamp(16px, 4vw, 48px);
+      bottom: clamp(16px, 6vh, 56px);
+      z-index: 8;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: clamp(10px, 2vw, 22px);
+      pointer-events: none;
+    }
+
+    #sprite-canvas {
+      width: clamp(96px, 18vw, 184px);
+      aspect-ratio: 184 / 183;
+      filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.35));
+      flex: 0 0 auto;
+    }
+
+    #speech-bubble {
+      position: relative;
+      width: min(620px, 72vw);
+      min-height: 76px;
+      padding: clamp(16px, 2.4vw, 24px);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.8);
+      color: #101827;
+      box-shadow: 0 18px 42px rgba(0, 0, 0, 0.28);
+      box-sizing: border-box;
+      font-size: clamp(18px, 2.5vw, 28px);
+      line-height: 1.35;
+      font-weight: 700;
+    }
+
+    #speech-bubble::before {
+      content: "";
+      position: absolute;
+      left: -14px;
+      bottom: 28px;
+      width: 28px;
+      height: 28px;
+      background: rgba(255, 255, 255, 0.8);
+      transform: rotate(45deg);
+      border-radius: 4px;
+    }
+
+    #guide-progress {
+      position: absolute;
+      top: clamp(14px, 3vh, 28px);
+      left: 50%;
+      z-index: 8;
+      display: flex;
+      gap: 8px;
+      transform: translateX(-50%);
+    }
+
+    .progress-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.35);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    }
+
+    .progress-dot.is-active {
+      background: #60a5fa;
+    }
+
+    #ready-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(8, 12, 24, 0.62);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-sizing: border-box;
+    }
+
+    #ready-modal.is-visible {
+      display: flex;
+    }
+
+    .ready-dialog {
+      width: min(460px, 100%);
+      padding: 28px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+      color: #111827;
+      text-align: center;
+      box-sizing: border-box;
+    }
+
+    .ready-dialog p {
+      margin: 0 0 24px;
+      font-size: 22px;
+      line-height: 1.4;
+      font-weight: 700;
+    }
+
+    .ready-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+    }
+
+    .ready-actions button {
+      min-height: 44px;
+      padding: 0 18px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+    }
+
+    .ready-actions button:hover {
+      transform: translateY(-1px);
+    }
+
+    #start-game-btn {
+      border: 1px solid #2563eb;
+      background: #2563eb;
+      color: #fff;
+      box-shadow: 0 10px 24px rgba(37, 99, 235, 0.28);
+    }
+
+    #start-game-btn:hover {
+      background: #1d4ed8;
+    }
+
+    #replay-guide-btn {
+      border: 1px solid #d1d5db;
+      background: #fff;
+      color: #111827;
+    }
+
+    #replay-guide-btn:hover {
+      background: #f9fafb;
+    }
+
+    @media (max-width: 720px), (orientation: portrait) {
+      #coach-layer {
+        left: 14px;
+        right: 14px;
+        bottom: 16px;
+        align-items: center;
+      }
+
+      #speech-bubble {
+        width: min(100%, 520px);
+        min-height: 68px;
+        font-size: 18px;
+      }
+    }
+
+    @media (max-width: 520px) {
+      #coach-layer {
+        gap: 8px;
+      }
+
+      #sprite-canvas {
+        width: 86px;
+      }
+
+      #speech-bubble {
+        padding: 14px;
+        border-radius: 16px;
+      }
+
+      .ready-actions {
+        flex-direction: column;
+      }
+
+      .ready-actions button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="guide-shell">
+    <div id="stage">
+      <video id="input_video" autoplay muted playsinline></video>
+      <canvas id="gesture_canvas"></canvas>
+
+      <div id="guide-progress" aria-hidden="true"></div>
+
+      <div id="coach-layer">
+        <canvas id="sprite-canvas" width="184" height="183" aria-label="Animated cat coach"></canvas>
+        <div id="speech-bubble" role="status" aria-live="polite">
+          <span id="guide-text"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="ready-modal" role="dialog" aria-modal="true" aria-labelledby="ready-title">
+    <div class="ready-dialog">
+      <p id="ready-title">Are you ready to start the game?</p>
+      <div class="ready-actions">
+        <button id="start-game-btn" type="button">Yes!</button>
+        <button id="replay-guide-btn" type="button">No, replay beginner's guide again</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    window.lockdown = () => {};
+    window.SES = { enabled: false };
+
+    const fallbackGuide = [
+      {"id": 1, "text": "First, open your hand and show 5 fingers."},
+      {"id": 2, "text": "Great. Now, make an OK sign."},
+      {"id": 3, "text": "Awesome. Try to move your OK sign to the other side of the screen."},
+      {"id": 4, "text": "Terrific! Open your hand with the same hand again."},
+      {"id": 5, "text": "You made it! Now, you can go back to the game and have fun!"}
+    ];
+
+    const videoElement = document.getElementById('input_video');
+    const gestureCanvas = document.getElementById('gesture_canvas');
+    const gestureCtx = gestureCanvas.getContext('2d');
+    const spriteCanvas = document.getElementById('sprite-canvas');
+    const spriteCtx = spriteCanvas.getContext('2d');
+    const guideText = document.getElementById('guide-text');
+    const guideProgress = document.getElementById('guide-progress');
+    const readyModal = document.getElementById('ready-modal');
+    const startGameBtn = document.getElementById('start-game-btn');
+    const replayGuideBtn = document.getElementById('replay-guide-btn');
+    const stage = document.getElementById('stage');
+
+    let guideSteps = fallbackGuide;
+    let currentStep = 0;
+    let isTyping = false;
+    let lessonComplete = false;
+    let stableFrames = 0;
+    let okStartX = null;
+    let path = [];
+    let smoothedIndex = { x: 0.5, y: 0.5 };
+    const charDelay = 60;
+
+    const spriteFrames = [
+      [0, 0, 184, 183],
+      [187, 0, 184, 183],
+      [374, 0, 184, 183],
+      [561, 0, 184, 183],
+      [561, 0, 184, 183],
+      [561, 0, 184, 183],
+      [748, 0, 184, 183],
+      [935, 0, 184, 183],
+      [1122, 0, 184, 183],
+      [1309, 0, 184, 183],
+      [1496, 0, 184, 183],
+      [1683, 0, 184, 183],
+      [1870, 0, 184, 183],
+      [2057, 0, 184, 183],
+      [2244, 0, 184, 183]
+    ];
+
+    const setViewportSize = () => {
+      const viewport = window.visualViewport;
+      const width = viewport ? viewport.width : window.innerWidth;
+      const height = viewport ? viewport.height : window.innerHeight;
+      const left = viewport ? viewport.offsetLeft : 0;
+      const top = viewport ? viewport.offsetTop : 0;
+      document.documentElement.style.setProperty('--viewport-width', `${width}px`);
+      document.documentElement.style.setProperty('--viewport-height', `${height}px`);
+      document.documentElement.style.setProperty('--viewport-left', `${left}px`);
+      document.documentElement.style.setProperty('--viewport-top', `${top}px`);
+      resizeGestureCanvas();
+    };
+
+    const resizeGestureCanvas = () => {
+      const rect = stage.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      gestureCanvas.width = Math.round(rect.width * dpr);
+      gestureCanvas.height = Math.round(rect.height * dpr);
+      gestureCanvas.style.width = `${rect.width}px`;
+      gestureCanvas.style.height = `${rect.height}px`;
+      gestureCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+
+    const loadGuideSteps = async () => {
+      try {
+        const response = await fetch('./beginnersGuide.json', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Guide JSON was not available.');
+        guideSteps = await response.json();
+      } catch (error) {
+        guideSteps = fallbackGuide;
+      }
+    };
+
+    const buildProgress = () => {
+      guideProgress.innerHTML = '';
+      guideSteps.forEach((step, index) => {
+        const dot = document.createElement('span');
+        dot.className = 'progress-dot';
+        if (index === currentStep) dot.classList.add('is-active');
+        guideProgress.appendChild(dot);
+      });
+    };
+
+    const updateProgress = () => {
+      [...guideProgress.children].forEach((dot, index) => {
+        dot.classList.toggle('is-active', index === currentStep);
+      });
+    };
+
+    const typeStep = async (stepIndex) => {
+      if (!guideSteps[stepIndex]) return;
+      isTyping = true;
+      stableFrames = 0;
+      guideText.textContent = '';
+      updateProgress();
+      const text = guideSteps[stepIndex].text;
+
+      for (let index = 0; index < text.length; index++) {
+        guideText.textContent += text[index];
+        await new Promise((resolve) => setTimeout(resolve, charDelay));
+      }
+
+      isTyping = false;
+      if (stepIndex === guideSteps.length - 1) {
+        lessonComplete = true;
+        setTimeout(() => readyModal.classList.add('is-visible'), 350);
+      }
+    };
+
+    const advanceStep = () => {
+      if (isTyping || lessonComplete) return;
+      currentStep += 1;
+      stableFrames = 0;
+      okStartX = null;
+      typeStep(currentStep);
+    };
+
+    const isFingerExtended = (landmarks, tipIndex, mcpIndex) => {
+      return landmarks[tipIndex].y < landmarks[mcpIndex].y;
+    };
+
+    const isOpenHand = (landmarks) => {
+      return isFingerExtended(landmarks, 8, 5) &&
+        isFingerExtended(landmarks, 12, 9) &&
+        isFingerExtended(landmarks, 16, 13) &&
+        isFingerExtended(landmarks, 20, 17);
+    };
+
+    const isOkGesture = (landmarks) => {
+      const thumbTip = landmarks[4];
+      const indexTip = landmarks[8];
+      const thumbIndexDistance = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
+      return thumbIndexDistance < 0.075 &&
+        isFingerExtended(landmarks, 12, 9) &&
+        isFingerExtended(landmarks, 16, 13) &&
+        isFingerExtended(landmarks, 20, 17);
+    };
+
+    const detectLessonStep = (landmarks) => {
+      if (isTyping || lessonComplete) return;
+
+      let matched = false;
+      if (currentStep === 0 || currentStep === 3) {
+        matched = isOpenHand(landmarks);
+      } else if (currentStep === 1) {
+        matched = isOkGesture(landmarks);
+      } else if (currentStep === 2) {
+        const ok = isOkGesture(landmarks);
+        const okCenterX = (landmarks[4].x + landmarks[8].x) / 2;
+        if (ok) {
+          if (okStartX === null) okStartX = okCenterX;
+          matched = Math.abs(okCenterX - okStartX) > 0.3;
+        } else {
+          okStartX = null;
+        }
+      }
+
+      if (matched) {
+        stableFrames += 1;
+      } else {
+        stableFrames = 0;
+      }
+
+      if (stableFrames >= 10) {
+        advanceStep();
+      }
+    };
+
+    const drawGestureTrail = (landmarks) => {
+      const rect = stage.getBoundingClientRect();
+      gestureCtx.clearRect(0, 0, rect.width, rect.height);
+
+      const rawIndexTip = landmarks[8];
+      smoothedIndex.x = smoothedIndex.x * 0.75 + rawIndexTip.x * 0.25;
+      smoothedIndex.y = smoothedIndex.y * 0.75 + rawIndexTip.y * 0.25;
+
+      if (isOkGesture(landmarks)) {
+        path.push({ x: 1 - smoothedIndex.x, y: smoothedIndex.y });
+        if (path.length > 36) path.shift();
+      } else if (path.length > 0) {
+        path.shift();
+      }
+
+      if (path.length > 1) {
+        gestureCtx.beginPath();
+        gestureCtx.lineWidth = 10;
+        gestureCtx.lineCap = 'round';
+        gestureCtx.lineJoin = 'round';
+        gestureCtx.strokeStyle = 'rgba(180, 145, 255, 0.72)';
+        gestureCtx.moveTo(path[0].x * rect.width, path[0].y * rect.height);
+        for (let index = 1; index < path.length; index++) {
+          gestureCtx.lineTo(path[index].x * rect.width, path[index].y * rect.height);
+        }
+        gestureCtx.stroke();
+      }
+
+      gestureCtx.beginPath();
+      gestureCtx.arc((1 - smoothedIndex.x) * rect.width, smoothedIndex.y * rect.height, 10, 0, 2 * Math.PI);
+      gestureCtx.fillStyle = isOkGesture(landmarks) ? '#facc15' : '#ffffff';
+      gestureCtx.shadowBlur = 12;
+      gestureCtx.shadowColor = isOkGesture(landmarks) ? 'rgba(250, 204, 21, 0.8)' : 'rgba(255, 255, 255, 0.5)';
+      gestureCtx.fill();
+      gestureCtx.shadowBlur = 0;
+    };
+
+    const startSpriteAnimation = () => {
+      const image = new Image();
+      let frameIndex = 0;
+      let lastFrameTime = 0;
+      let animationStarted = false;
+
+      const animate = (time) => {
+        if (time - lastFrameTime >= 83) {
+          frameIndex = (frameIndex + 1) % spriteFrames.length;
+          lastFrameTime = time;
+        }
+
+        const frame = spriteFrames[frameIndex];
+        spriteCtx.clearRect(0, 0, spriteCanvas.width, spriteCanvas.height);
+        if (image.complete) {
+          spriteCtx.drawImage(image, frame[0], frame[1], frame[2], frame[3], 0, 0, 184, 183);
+        }
+        requestAnimationFrame(animate);
+      };
+
+      const startAnimation = () => {
+        if (animationStarted) return;
+        animationStarted = true;
+        requestAnimationFrame(animate);
+      };
+
+      image.addEventListener('load', startAnimation, { once: true });
+      image.src = './end-png1-sprite.png';
+      if (image.complete) startAnimation();
+    };
+
+    const startHands = () => {
+      const hands = new Hands({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+      });
+
+      hands.setOptions({
+        maxNumHands: 1,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
+
+      hands.onResults((results) => {
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+          const landmarks = results.multiHandLandmarks[0];
+          detectLessonStep(landmarks);
+          drawGestureTrail(landmarks);
+        } else {
+          const rect = stage.getBoundingClientRect();
+          gestureCtx.clearRect(0, 0, rect.width, rect.height);
+          stableFrames = 0;
+          path = [];
+        }
+      });
+
+      const camera = new Camera(videoElement, {
+        onFrame: async () => {
+          await hands.send({ image: videoElement });
+        },
+        width: 1280,
+        height: 720
+      });
+      camera.start();
+    };
+
+    setViewportSize();
+    window.addEventListener('resize', setViewportSize);
+    window.addEventListener('orientationchange', setViewportSize);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', setViewportSize);
+      window.visualViewport.addEventListener('scroll', setViewportSize);
+    }
+
+    startGameBtn.addEventListener('click', () => {
+      window.location.href = './combine.html';
+    });
+
+    replayGuideBtn.addEventListener('click', () => {
+      window.location.reload();
+    });
+
+    (async () => {
+      await loadGuideSteps();
+      buildProgress();
+      startSpriteAnimation();
+      startHands();
+      typeStep(0);
+    })();
+  </script>
+</body>
+</html>
