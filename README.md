@@ -8,9 +8,8 @@ Before playing, ensure that the device has available camera and stay at bright p
 Demo
 =========
 This demo was shown on SITCON (Students’ Information Technology Conference) in 2026 in Taipei.
-
-Slide Link (Google Drive) :
-Offical Video Link (Youtube) : 
+Play it : [Click ME](https://miyun-owo.github.io/magic-cat-academy-Google/combine.html) 
+Develop & Demo : [Click ME](https://hackmd.io/@miyunOwO/Hy3vXCMZzl) 
 
 
 Playing the game offline
