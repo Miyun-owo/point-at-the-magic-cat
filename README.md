@@ -11,9 +11,9 @@ This demo was shown on SITCON (Students’ Information Technology Conference) in
 
 Play it : [Click ME](https://miyun-owo.github.io/magic-cat-academy-Google/combine.html) 
 
-Develop & Demo : [Click ME](https://hackmd.io/@miyunOwO/Hy3vXCMZzl) 
+Develop & Demo : [Click ME](https://hackmd.io/@miyun-owo/Hy3vXCMZzl) 
 
-Me at SITCON 2026 [Click ME](https://youtu.be/Dji_wUhFPvo?si=PqRjTcx7Dc_kY7qQ&t=1246)
+Me at SITCON 2026 [Click ME](https://www.youtube.com/watch?v=Dji_wUhFPvo&t=1246s)
 
 
 Playing the game offline
