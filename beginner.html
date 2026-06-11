@@ -281,10 +281,10 @@
 
   <div id="ready-modal" role="dialog" aria-modal="true" aria-labelledby="ready-title">
     <div class="ready-dialog">
-      <p id="ready-title">Are you ready to start the game?</p>
+      <p id="ready-title">準備好要開始正式遊戲了嗎!</p>
       <div class="ready-actions">
-        <button id="start-game-btn" type="button">Yes!</button>
-        <button id="replay-guide-btn" type="button">No, replay beginner's guide again</button>
+        <button id="start-game-btn" type="button">是!</button>
+        <button id="replay-guide-btn" type="button">不，再玩一次新手指南</button>
       </div>
     </div>
   </div>
@@ -294,11 +294,11 @@
     window.SES = { enabled: false };
 
     const fallbackGuide = [
-      {"id": 1, "text": "First, open your hand and show 5 fingers."},
-      {"id": 2, "text": "Great. Now, make an OK sign."},
-      {"id": 3, "text": "Awesome. Try to move your OK sign to the other side of the screen."},
-      {"id": 4, "text": "Terrific! Open your hand with the same hand again."},
-      {"id": 5, "text": "You made it! Now, you can go back to the game and have fun!"}
+      {"id": 1, "text": "首先，伸出手掌。"},
+      {"id": 2, "text": "很棒! 現在，做一個 OK 的手勢"},
+      {"id": 3, "text": "十分好，現在，將你的手維持 OK 手勢，並將它移動到螢幕的另一邊"},
+      {"id": 4, "text": "太棒了! 現在，將你的手放開"},
+      {"id": 5, "text": "你做到了! 現在，我們可以回到原本的遊戲了! "}
     ];
 
     const videoElement = document.getElementById('input_video');
